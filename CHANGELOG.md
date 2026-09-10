@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.31 - 2026-09-10
+
+### Fixed
+- Discover the current per-user OpenAI Codex executable when the app is
+  launched without the terminal `PATH`, including setups where Codex work is
+  performed in WSL.
+
 ## 1.0.0 - 2026-08-08
 
 First stable V1 release of codex-barbar: a Windows 11 x64 tray app for

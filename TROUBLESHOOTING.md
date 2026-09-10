@@ -36,6 +36,16 @@ Refresh is manual during the first run and then automatic every 5 minutes by
 default. If the App Server process cannot start, the panel shows a redacted
 error and keeps the last successful snapshot.
 
+**Why does using WSL affect the account shown?**
+codex-barbar reads the Windows Codex installation and Windows-side sign-in
+state. Running an agent or project inside WSL does not share WSL's
+`~/.codex/auth.json`; it cannot supply the Windows account automatically.
+Sign in with the Windows Codex CLI (`codex login` in PowerShell), then use
+**Settings → Providers → Validate Codex executable** and refresh. If the app
+was launched from the Start menu, validation also checks the standard
+per-user OpenAI Codex install location when the terminal `PATH` is not
+available.
+
 **Can I use this on Windows 10 or ARM?**
 No. V1 targets Windows 11 23H2 or newer on x64 only.
 

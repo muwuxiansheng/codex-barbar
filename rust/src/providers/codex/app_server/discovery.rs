@@ -262,15 +262,34 @@ impl Default for CodexCommandResolver {
     }
 }
 
-/// Ordered known native install roots.
+/// Ordered native install roots used when the process PATH is incomplete (as
+/// happens when the app is launched from Explorer after a CLI install).
 fn known_native_candidates() -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    if let Some(local) = dirs::data_local_dir() {
-        out.push(local.join(r"Programs\OpenAI Codex\codex.exe"));
-        out.push(local.join(r"Programs\Codex\codex.exe"));
-        out.push(local.join(r"Microsoft\WindowsApps\codex.exe"));
-    }
-    out
+    dirs::data_local_dir()
+        .map(|local| known_native_candidates_from(&local))
+        .unwrap_or_default()
+}
+
+fn known_native_candidates_from(local: &Path) -> Vec<PathBuf> {
+    vec![
+        // Current OpenAI Codex desktop/CLI installer layout.
+        local.join(r"Programs\OpenAI\Codex\bin\codex.exe"),
+        // Older and alternate layouts retained for compatibility.
+        local.join(r"Programs\OpenAI Codex\codex.exe"),
+        local.join(r"Programs\Codex\codex.exe"),
+        local.join(r"Microsoft\WindowsApps\codex.exe"),
+    ]
+}
+
+#[test]
+fn known_native_candidates_include_current_openai_layout() {
+    let local = Path::new(r"C:\Users\test\AppData\Local");
+    let candidates = known_native_candidates_from(local);
+
+    assert_eq!(
+        candidates.first(),
+        Some(&local.join(r"Programs\OpenAI\Codex\bin\codex.exe"))
+    );
 }
 
 fn is_windows_apps_alias(path: &Path) -> bool {
