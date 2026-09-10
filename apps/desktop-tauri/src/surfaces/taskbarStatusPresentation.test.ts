@@ -3,6 +3,7 @@ import type { UseStatusSurfaceResult } from "../hooks/useStatusSurface";
 import { buildStatusSurfaceViewModel } from "../lib/statusSurfaceViewModel";
 import {
   bootstrapWithTwoProfiles,
+  profileUsageFixture,
   readyTwoWindowFixture,
   staleOfflineFixture,
   weeklyOnlyUsage,
@@ -53,14 +54,81 @@ describe("buildTaskbarStatusPresentation", () => {
 
     expect(presentation.displayName).toBe("ProofUser");
     expect(presentation.compactIdentity).toBe("ProofU");
-    expect(presentation.reset?.resetsAt).toBe("2026-08-20T00:00:00Z");
+    expect(presentation.resetDateText).toBe("8/20");
+    expect(presentation.resetCountdownText).toBe("6天");
     expect(presentation.surfaceAlpha).toBe("0.8");
     expect(presentation.ariaLabel).toBe(
-      "打开完整面板，ProofUser，Wk 98%，6天，已更新，8天前",
+      "打开完整面板，ProofUser，W 98%，6天，已更新，8天前",
     );
   });
 
-  it("keeps only the universal weekly window and its reset", () => {
+  it("renders both five-hour and weekly parts when both windows exist", () => {
+    const presentation = buildTaskbarStatusPresentation(
+      surfaceFrom(readyTwoWindowFixture()),
+    );
+
+    expect(presentation.quotaParts.map((part) => part.text)).toEqual([
+      "5H 42%",
+      "W 61%",
+    ]);
+    expect(presentation.ariaLabel).toContain("5H 42%，W 61%");
+  });
+
+  it("degrades to the weekly part when five-hour data is missing", () => {
+    const presentation = buildTaskbarStatusPresentation(weeklySurface());
+
+    expect(presentation.quotaParts.map((part) => part.key)).toEqual(["weekly"]);
+    expect(presentation.quotaParts[0]!.text).toBe("W 98%");
+    expect(presentation.ariaLabel).not.toContain("5H");
+  });
+
+  it("degrades to the five-hour part when weekly data is missing", () => {
+    const presentation = buildTaskbarStatusPresentation(
+      surfaceFrom(bootstrapWithTwoProfiles()),
+    );
+
+    expect(presentation.quotaParts.map((part) => part.key)).toEqual([
+      "fiveHour",
+    ]);
+    expect(presentation.quotaParts[0]!.text).toBe("5H 42%");
+    expect(presentation.resetDateText).toBeNull();
+    expect(presentation.ariaLabel).not.toContain("W 42%");
+  });
+
+  it("falls back to the shared no-quota copy when no windows exist", () => {
+    const bootstrap = bootstrapWithTwoProfiles();
+    bootstrap.usageByProfile.personal = {
+      ...profileUsageFixture("personal"),
+      primary: null,
+      secondary: null,
+      additionalWindows: [],
+      freshness: "missing",
+    };
+
+    const presentation = buildTaskbarStatusPresentation(surfaceFrom(bootstrap));
+
+    expect(presentation.quotaParts).toEqual([]);
+    expect(presentation.ariaLabel).toContain("无可用额度");
+  });
+
+  it.each([
+    ["remaining", ["5H 42%", "W 61%"]],
+    ["used", ["5H 58%", "W 39%"]],
+  ] as const)(
+    "follows the shared %s display mode without recomputing percentages",
+    (displayMode, texts) => {
+      const bootstrap = readyTwoWindowFixture();
+      bootstrap.settings.displayMode = displayMode;
+
+      const presentation = buildTaskbarStatusPresentation(
+        surfaceFrom(bootstrap),
+      );
+
+      expect(presentation.quotaParts.map((part) => part.text)).toEqual(texts);
+    },
+  );
+
+  it("renders the deduped five-hour and weekly windows and drops extras", () => {
     const bootstrap = readyTwoWindowFixture();
     bootstrap.usageByProfile.personal!.primary!.resetsAt =
       "2026-08-21T00:00:00Z";
@@ -80,30 +148,15 @@ describe("buildTaskbarStatusPresentation", () => {
 
     const presentation = buildTaskbarStatusPresentation(surfaceFrom(bootstrap));
 
-    expect(presentation.metrics.map((metric) => metric.limitId)).toEqual([
+    expect(presentation.quotaParts.map((part) => part.key)).toEqual([
+      "fiveHour",
       "weekly",
     ]);
-    expect(presentation.reset?.limitId).toBe("weekly");
-    expect(presentation.ariaLabel).toContain("Wk 61%");
-    expect(presentation.ariaLabel).not.toContain("5H");
+    expect(presentation.resetDateText).toBe("8/20");
+    expect(presentation.ariaLabel).toContain("5H 42%");
+    expect(presentation.ariaLabel).toContain("W 61%");
     expect(presentation.ariaLabel).not.toContain("Spark");
   });
-
-  it.each([
-    ["remaining", "Wk 98%"],
-    ["used", "Wk 2%"],
-  ] as const)(
-    "formats %s mode once in the shared aria label",
-    (displayMode, text) => {
-      const bootstrap = bootstrapWithTwoProfiles();
-      bootstrap.settings.displayMode = displayMode;
-      bootstrap.usageByProfile.personal = weeklyOnlyUsage();
-
-      expect(
-        buildTaskbarStatusPresentation(surfaceFrom(bootstrap)).ariaLabel,
-      ).toContain(text);
-    },
-  );
 
   it("announces cached data and update age from the shared model", () => {
     const bootstrap = staleOfflineFixture();
@@ -144,7 +197,7 @@ describe("buildTaskbarStatusPresentation", () => {
     expect(presentation.showResetDate).toBe(true);
     expect(presentation.density).toBe("compact");
     expect(presentation.compactIdentity).toBe("ProofU");
-    expect(presentation.weeklyText).toBe("Wk 98%");
+    expect(presentation.quotaParts.map((part) => part.text)).toEqual(["W 98%"]);
     expect(presentation.resetDateText).toBe("8/20");
   });
 
@@ -172,30 +225,34 @@ describe("buildTaskbarStatusPresentation", () => {
     expect(presentation.showResetDate).toBe(false);
     expect(presentation.density).toBe("standard");
     expect(presentation.compactIdentity).toBeNull();
-    expect(presentation.weeklyText).toBeNull();
+    expect(presentation.quotaParts).toEqual([]);
     expect(presentation.resetDateText).toBeNull();
   });
 
-  it("combines label and percent independently", () => {
+  it("combines the weekly label and percent independently", () => {
     const base = weeklySurface();
     const prefs = base.bootstrap!.settings.taskbarPresentation;
-
-    const labelOnly = buildTaskbarStatusPresentation({
+    const withPrefs = (
+      overrides: Partial<NonNullable<typeof prefs>>,
+    ): UseStatusSurfaceResult => ({
       ...base,
       bootstrap: {
         ...base.bootstrap!,
-        settings: { ...base.bootstrap!.settings, taskbarPresentation: { ...prefs, showWeeklyPercent: false } },
+        settings: {
+          ...base.bootstrap!.settings,
+          taskbarPresentation: { ...prefs, ...overrides },
+        },
       },
     });
-    expect(labelOnly.weeklyText).toBe("Wk");
 
-    const percentOnly = buildTaskbarStatusPresentation({
-      ...base,
-      bootstrap: {
-        ...base.bootstrap!,
-        settings: { ...base.bootstrap!.settings, taskbarPresentation: { ...prefs, showWeeklyLabel: false } },
-      },
-    });
-    expect(percentOnly.weeklyText).toBe("98%");
+    const labelOnly = buildTaskbarStatusPresentation(
+      withPrefs({ showWeeklyPercent: false }),
+    );
+    expect(labelOnly.quotaParts.map((part) => part.text)).toEqual(["W"]);
+
+    const percentOnly = buildTaskbarStatusPresentation(
+      withPrefs({ showWeeklyLabel: false }),
+    );
+    expect(percentOnly.quotaParts.map((part) => part.text)).toEqual(["98%"]);
   });
 });

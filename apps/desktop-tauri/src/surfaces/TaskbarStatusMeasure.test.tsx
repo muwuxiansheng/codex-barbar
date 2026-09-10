@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invokeMock } from "../test/setup";
 import {
   bootstrapWithTwoProfiles,
+  readyTwoWindowFixture,
   weeklyOnlyUsage,
 } from "../test/profileUsageFixtures";
 import TaskbarStatus from "./TaskbarStatus";
@@ -31,6 +32,14 @@ describe("TaskbarStatusMeasure", () => {
     expect(rule).not.toContain("content-visibility: hidden");
   });
 
+  it("keeps the dual-quota track on a single centered line", () => {
+    const start = taskbarStatusCss.indexOf(".taskbar-status__quota-track {");
+    const rule = taskbarStatusCss.slice(start, taskbarStatusCss.indexOf("}", start));
+    expect(rule).toContain("grid-auto-flow: column");
+    expect(rule).toContain("align-items: center");
+    expect(rule).toContain("white-space: nowrap");
+  });
+
   it("renders only inert weekly measurement geometry", async () => {
     const bootstrap = bootstrapWithTwoProfiles();
     bootstrap.profiles[0]!.accountDisplayName = "ProofUser";
@@ -41,7 +50,7 @@ describe("TaskbarStatusMeasure", () => {
     render(<TaskbarStatusMeasure />);
 
     const measurement = await screen.findByTestId("taskbar-status-measurement");
-    expect(await within(measurement).findByText(/周 98%|Wk 98%/)).toBeInTheDocument();
+    expect(await within(measurement).findByText("W 98%")).toBeInTheDocument();
     expect(within(measurement).getByText("ProofU")).toBeInTheDocument();
     expect(within(measurement).getByText("8/20")).toBeInTheDocument();
     expect(within(measurement).queryByText(/5H/)).toBeNull();
@@ -95,7 +104,7 @@ describe("TaskbarStatusMeasure", () => {
 
     const visibleView = render(<TaskbarStatus />);
     const visible = await screen.findByTestId("taskbar-status-visible");
-    await within(visible).findByText(/周 98%|Wk 98%/);
+    await within(visible).findByText("W 98%");
     const geometry = (root: HTMLElement) =>
       Array.from(
         root.querySelectorAll(
@@ -111,7 +120,7 @@ describe("TaskbarStatusMeasure", () => {
 
     const measurementView = render(<TaskbarStatusMeasure />);
     const measurement = await screen.findByTestId("taskbar-status-measurement");
-    await within(measurement).findByText(/周 98%|Wk 98%/);
+    await within(measurement).findByText("W 98%");
     const measurementGeometry = geometry(measurement);
     expect(measurementGeometry).toEqual(visibleGeometry);
     expect({
@@ -127,8 +136,41 @@ describe("TaskbarStatusMeasure", () => {
     expect(visibleGeometry).toEqual([
       "taskbar-status__avatar:",
       "taskbar-status__identity:ProofU",
-      "taskbar-status__metric:Wk 98%",
+      "taskbar-status__metric:W 98%",
       "taskbar-status__reset:8/20",
+    ]);
+    measurementView.unmount();
+  });
+
+  it("keeps visible and measurement geometry identical for the dual-quota layout", async () => {
+    const bootstrap = readyTwoWindowFixture();
+    bootstrap.profiles[0]!.accountDisplayName = "ProofUser";
+    bootstrap.profiles[0]!.presentationName = "ProofUser";
+    invokeMock.mockResolvedValue(bootstrap);
+
+    const visibleView = render(<TaskbarStatus />);
+    const visible = await screen.findByTestId("taskbar-status-visible");
+    await within(visible).findByText("W 61%");
+    const geometry = (root: HTMLElement) =>
+      Array.from(
+        root.querySelectorAll(
+          ".taskbar-status__avatar, .taskbar-status__identity, .taskbar-status__metric, .taskbar-status__quota-separator, .taskbar-status__reset",
+        ),
+      ).map((element) => `${element.className}:${element.textContent}`);
+    const visibleGeometry = geometry(visible);
+    visibleView.unmount();
+
+    const measurementView = render(<TaskbarStatusMeasure />);
+    const measurement = await screen.findByTestId("taskbar-status-measurement");
+    await within(measurement).findByText("W 61%");
+    expect(geometry(measurement)).toEqual(visibleGeometry);
+    expect(visibleGeometry).toEqual([
+      "taskbar-status__avatar:",
+      "taskbar-status__identity:ProofU",
+      "taskbar-status__metric:5H 42%",
+      "taskbar-status__quota-separator:|",
+      "taskbar-status__metric:W 61%",
+      "taskbar-status__reset:8/14",
     ]);
     measurementView.unmount();
   });
@@ -208,4 +250,3 @@ describe("TaskbarStatusMeasure", () => {
     );
   });
 });
-

@@ -1,9 +1,20 @@
 import type { UseStatusSurfaceResult } from "../hooks/useStatusSurface";
 import type {
+  QuotaBand,
   StatusQuotaMetric,
   TrustState,
 } from "../lib/statusSurfaceViewModel";
 import { surfaceAlphaFromTransparency } from "../lib/surfaceTransparency";
+
+const FIVE_HOUR_LABEL = "5H";
+const WEEKLY_LABEL = "W";
+const NO_QUOTA_TEXT = "无可用额度";
+
+export interface TaskbarQuotaPart {
+  key: "fiveHour" | "weekly";
+  text: string;
+  band: QuotaBand;
+}
 
 export interface TaskbarStatusPresentation {
   displayName: string;
@@ -16,10 +27,9 @@ export interface TaskbarStatusPresentation {
   showWeeklyPercent: boolean;
   showResetDate: boolean;
   density: "compact" | "standard";
-  weeklyText: string | null;
+  quotaParts: readonly TaskbarQuotaPart[];
   resetDateText: string | null;
-  metrics: readonly StatusQuotaMetric[];
-  reset: StatusQuotaMetric | null;
+  resetCountdownText: string | null;
   trustState: TrustState;
   ariaLabel: string;
   surfaceAlpha: string;
@@ -29,16 +39,17 @@ export function compactTaskbarMetric(metric: StatusQuotaMetric): string {
   return `${metric.shortLabel} ${metric.displayedPercent}%`;
 }
 
-function weeklyText(
-  metric: StatusQuotaMetric | null,
+function quotaPart(
+  metric: StatusQuotaMetric,
+  key: TaskbarQuotaPart["key"],
+  label: string,
   showLabel: boolean,
   showPercent: boolean,
-): string | null {
-  if (!metric) return null;
+): TaskbarQuotaPart | null {
   const parts: string[] = [];
-  if (showLabel) parts.push(metric.shortLabel);
+  if (showLabel) parts.push(label);
   if (showPercent) parts.push(`${metric.displayedPercent}%`);
-  return parts.length > 0 ? parts.join(" ") : null;
+  return parts.length > 0 ? { key, text: parts.join(" "), band: metric.band } : null;
 }
 
 function resetDateText(metric: StatusQuotaMetric | null): string | null {
@@ -52,8 +63,6 @@ function resetDateText(metric: StatusQuotaMetric | null): string | null {
 export function buildTaskbarStatusPresentation(
   surface: UseStatusSurfaceResult,
 ): TaskbarStatusPresentation {
-  const metrics = surface.universalMetric ? [surface.universalMetric] : [];
-  const reset = surface.universalMetric;
   const prefs = surface.bootstrap?.settings.taskbarPresentation;
   const showIcon = prefs?.showTaskbarIcon ?? true;
   const showAccount = prefs?.showTaskbarAccount ?? true;
@@ -61,10 +70,30 @@ export function buildTaskbarStatusPresentation(
   const showWeeklyPercent = prefs?.showWeeklyPercent ?? true;
   const showResetDate = prefs?.showResetDate ?? true;
   const density = prefs?.density ?? "compact";
-  const weekly = weeklyText(reset, showWeeklyLabel, showWeeklyPercent);
+  // The taskbar pins its own short labels (5H / W) so the tray and panel keep
+  // their localized wording; percentages come from the shared view model and
+  // already follow the global displayMode.
+  const fiveHourPart = surface.primaryMetric
+    ? quotaPart(surface.primaryMetric, "fiveHour", FIVE_HOUR_LABEL, true, true)
+    : null;
+  const weeklyPart = surface.secondaryMetric
+    ? quotaPart(
+        surface.secondaryMetric,
+        "weekly",
+        WEEKLY_LABEL,
+        showWeeklyLabel,
+        showWeeklyPercent,
+      )
+    : null;
+  const quotaParts = [fiveHourPart, weeklyPart].filter(
+    (part): part is TaskbarQuotaPart => part !== null,
+  );
+  const reset = surface.secondaryMetric;
   const resetDate = showResetDate ? resetDateText(reset) : null;
   const metricsText =
-    weekly ?? (metrics.map(compactTaskbarMetric).join("，") || "无可用额度");
+    quotaParts.map((part) => part.text).join("，") ||
+    (surface.universalMetric ? compactTaskbarMetric(surface.universalMetric) : "") ||
+    NO_QUOTA_TEXT;
   const trustText =
     surface.trustState === "cached" ? "缓存数据" : surface.refreshStatus;
   const ariaLabel = [
@@ -89,10 +118,9 @@ export function buildTaskbarStatusPresentation(
     showWeeklyPercent,
     showResetDate,
     density,
-    weeklyText: weekly,
+    quotaParts,
     resetDateText: resetDate,
-    metrics,
-    reset,
+    resetCountdownText: reset?.resetText ?? null,
     trustState: surface.trustState,
     ariaLabel,
     surfaceAlpha: String(

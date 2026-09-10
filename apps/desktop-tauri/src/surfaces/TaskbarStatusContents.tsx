@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type React from "react";
 import type { CSSProperties } from "react";
 import AccountAvatar from "../components/AccountAvatar";
@@ -29,12 +30,13 @@ export function TaskbarStatusContents({
     compactIdentity,
     density,
     displayName,
+    quotaParts,
+    resetCountdownText,
     resetDateText,
     showAccount,
     showIcon,
     showResetDate,
     trustState,
-    weeklyText,
   } = presentation;
 
   return (
@@ -79,26 +81,38 @@ export function TaskbarStatusContents({
         {showAccount && compactIdentity ? (
           <span className="taskbar-status__identity">{compactIdentity}</span>
         ) : null}
-        {weeklyText ? (
+        {quotaParts.length > 0 ? (
           <span
             className="taskbar-status__quota-track"
             data-testid={visible ? "taskbar-status-quota-track" : undefined}
           >
-            <span
-              className="taskbar-status__metric"
-              data-testid={visible ? "taskbar-status-metric" : undefined}
-              data-band={presentation.reset?.band}
-              title={weeklyText}
-            >
-              {weeklyText}
-            </span>
+            {quotaParts.map((part, index) => (
+              <Fragment key={part.key}>
+                {index > 0 ? (
+                  <span
+                    className="taskbar-status__quota-separator"
+                    aria-hidden="true"
+                  >
+                    |
+                  </span>
+                ) : null}
+                <span
+                  className="taskbar-status__metric"
+                  data-testid={visible ? `taskbar-status-metric-${part.key}` : undefined}
+                  data-band={part.band}
+                  title={part.text}
+                >
+                  {part.text}
+                </span>
+              </Fragment>
+            ))}
           </span>
         ) : null}
         {showResetDate && resetDateText ? (
           <span
             className="taskbar-status__reset"
             data-testid={visible ? "taskbar-status-reset" : undefined}
-            title={presentation.reset?.resetText ?? "无重置时间"}
+            title={resetCountdownText ?? "无重置时间"}
           >
             {resetDateText}
           </span>

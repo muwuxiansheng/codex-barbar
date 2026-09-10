@@ -111,11 +111,17 @@ body,
   display: inline-grid;
   grid-auto-flow: column;
   grid-auto-columns: max-content;
+  align-items: center;
   min-width: 0;
   max-width: none;
-  gap: 7px;
+  gap: 6px;
   overflow: visible;
   mask-image: none;
+  white-space: nowrap;
+}
+.taskbar-status__quota-separator {
+  color: rgb(255 255 255 / 0.38);
+  font-weight: 500;
 }
 .taskbar-status__metric { font-variant-numeric: tabular-nums; }
 .taskbar-status__metric[data-band="high"] { color: var(--quota-high); }
