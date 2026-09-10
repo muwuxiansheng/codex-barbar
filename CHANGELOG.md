@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.33 - 2026-09-10
+
+### Fixed
+- Discover the current per-user OpenAI Codex executable when the app is
+  launched without the terminal `PATH`, including setups where Codex work is
+  performed in WSL.
+- Pin Browserslist to a patched release and document its data-license exception.
+
 ## 1.0.32 - 2026-09-10
 
 ### Fixed

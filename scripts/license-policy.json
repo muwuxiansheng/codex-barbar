@@ -45,7 +45,7 @@
       "reason": "Single permissive data license used by the rustls/webpki-roots crate"
     },
     {
-      "package": "caniuse-lite@1.0.30001787",
+      "package": "caniuse-lite@1.0.30001810",
       "license": "CC-BY-4.0",
       "reason": "CC-BY-4.0 data license used by caniuse-lite (frontend build dependency)"
     },
