@@ -29,7 +29,14 @@ pub fn save_stored_size(width: u32, height: u32) {
 }
 
 fn stored_logical_size() -> (u32, u32) {
-    crate::window_positioner::FLYOUT_LOGICAL_SIZE
+    crate::geometry_store::load_size(FLYOUT_SIZE_KEY)
+        .map(|size| {
+            (
+                size.width.clamp(MIN_LOGICAL_WIDTH, 720),
+                size.height.clamp(MIN_LOGICAL_HEIGHT, 900),
+            )
+        })
+        .unwrap_or(crate::window_positioner::FLYOUT_LOGICAL_SIZE)
 }
 
 /// Resize the visible flyout to hug content, then re-anchor it above the taskbar.

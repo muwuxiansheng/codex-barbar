@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.34 - 2026-09-10
+
+### Fixed
+- Keep the tray panel at its native DPI scale while resizing its window to
+  show the complete rendered content instead of clipping the lower actions.
+
 ## 1.0.33 - 2026-09-10
 
 ### Fixed

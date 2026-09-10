@@ -7,7 +7,7 @@ import {
   staleOfflineFixture,
 } from "../test/profileUsageFixtures";
 import { events } from "../lib/tauri";
-import TrayPanel from "./TrayPanel";
+import TrayPanel, { measureTrayPanelSize } from "./TrayPanel";
 
 type EventCallback = (event: { payload: unknown }) => void;
 
@@ -49,6 +49,13 @@ function renderTray(bootstrap = bootstrapWithTwoProfiles()) {
   });
   return render(<TrayPanel />);
 }
+
+  it("measures the complete content height in logical pixels", () => {
+    expect(measureTrayPanelSize({ clientWidth: 380, scrollHeight: 612 })).toEqual({
+      width: 380,
+      height: 612,
+    });
+  });
 
 describe("TrayPanel", () => {
   beforeEach(() => {

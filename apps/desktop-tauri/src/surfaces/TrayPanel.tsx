@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   dismissTrayPanel,
   getBootstrapState,
   openCodexUsagePage,
   openSettingsWindow,
   quitApp,
+  setFlyoutSize,
 } from "../lib/tauri";
 import type { BootstrapDto } from "../types/bridge";
 import { useProfileUsage } from "../hooks/useProfileUsage";
@@ -17,6 +18,56 @@ import UsageStatus from "./tray/UsageStatus";
 import { trayCopy } from "./tray/copy";
 import "./tray/TrayPanel.css";
 
+const TRAY_PANEL_MIN_WIDTH = 320;
+const TRAY_PANEL_MAX_WIDTH = 720;
+const TRAY_PANEL_MIN_HEIGHT = 320;
+const TRAY_PANEL_MAX_HEIGHT = 900;
+
+export interface TrayPanelSize {
+  width: number;
+  height: number;
+}
+
+export function measureTrayPanelSize(
+  element: Pick<HTMLElement, "clientWidth" | "scrollHeight">,
+): TrayPanelSize {
+  return {
+    width: Math.max(
+      TRAY_PANEL_MIN_WIDTH,
+      Math.min(TRAY_PANEL_MAX_WIDTH, Math.ceil(element.clientWidth)),
+    ),
+    height: Math.max(
+      TRAY_PANEL_MIN_HEIGHT,
+      Math.min(TRAY_PANEL_MAX_HEIGHT, Math.ceil(element.scrollHeight)),
+    ),
+  };
+}
+
+function useTrayPanelAutoSize(ready: boolean) {
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    const element = panelRef.current;
+    if (!ready || !element) return;
+
+    let lastSize: TrayPanelSize | null = null;
+    const resize = () => {
+      const size = measureTrayPanelSize(element);
+      if (size.width === lastSize?.width && size.height === lastSize?.height) return;
+      lastSize = size;
+      void setFlyoutSize(size.width, size.height);
+    };
+
+    resize();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ready]);
+
+  return panelRef;
+}
+
 
 function systemTimeZone(): string {
   try {
@@ -27,6 +78,7 @@ function systemTimeZone(): string {
 }
 
 function TrayDashboard({ bootstrap }: { bootstrap: BootstrapDto }) {
+  const panelRef = useTrayPanelAutoSize(true);
   const usage = useProfileUsage(bootstrap);
   useTheme(bootstrap.settings.theme);
   const language = bootstrap.settings.language;
@@ -45,9 +97,9 @@ function TrayDashboard({ bootstrap }: { bootstrap: BootstrapDto }) {
   );
   const primary = usage.state.primary;
   const secondary = usage.state.secondary;
-
   return (
     <main
+      ref={panelRef}
       className={`tray-panel tray-panel--macos tray-panel--${panel.density}`}
       data-density={panel.density}
       aria-label="codex-barbar tray panel"
